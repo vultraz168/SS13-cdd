@@ -1,4 +1,4 @@
-# Continuous delivery system for ss13.
+# Continuous delivery daemare for ss13.
 # Requires: pip install cherrypy
 # Requires the following to be on PATH:
 #   git
@@ -60,7 +60,7 @@ def update_task():
 
 # -------------------- INTERNAL SERVER --------------------
 
-# On the BYOND end, world.Export() to the daemon, delivering player count
+# On the BYOND end, world.Export() to the daemare, delivering player count
 # Respond if we must shut down the server.
 
 startup()
