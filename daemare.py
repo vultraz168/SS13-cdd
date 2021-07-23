@@ -8,12 +8,14 @@
 # CHANGE BELOW
 
 PATH_TO_SS13 = "D:/mlpstation13"
+ACTIVE_REMOTE = "origin"
 ACTIVE_BRANCH = "cdd_test"
 DME_NAME = "vgstation13.dme"
 DMB_NAME = "vgstation13.dmb"
 DAEMARE_PORT = 6158
 DREAM_DAEMON_PORT = 49933
 VOTE_PLAYER_THRESHOLD = 3 # If less than or equal to threshold, call vote to restart
+GITHUB_SCAN_PERIOD = 60
 
 # ----------------------------------------
 
@@ -51,10 +53,11 @@ def check_remote_and_update():
 
     # Check for merge conflicts
     merge_check = subprocess.run([
-        "git","merge","--no-commit","--no-ff",ACTIVE_BRANCH],
+        "git","merge","--no-commit","--no-ff",
+        ACTIVE_REMOTE+"/"+ACTIVE_BRANCH],
         capture_output=True)
     
-    log(merge_check.stdout.decode("utf-8"))
+    #log(merge_check.stdout.decode("utf-8"))
 
     # Check if nothing needs to be done:
     if "up to date" in merge_check.stdout.decode("utf-8"):
@@ -70,10 +73,11 @@ def check_remote_and_update():
     # Exit status is 0 if the merge is possible.
     if merge_check.returncode == 0:
         log("No merge conflicts. Starting rebase.")
-        rebase_process = subprocess.run(["git","rebase",ACTIVE_BRANCH])
+        rebase_process = subprocess.run(["git","rebase",
+            ACTIVE_REMOTE+"/"+ACTIVE_BRANCH])
         if not (rebase_process.returncode == 0):
             raise Exception("Error occurred while rebasing.")
-        log("Successfully rebased.")
+        log("Successfully rebased. Update needed.")
     else:
         LOGGER.error('Merge error, or merge conflict present. '
             'Manual resolution required.')
@@ -94,7 +98,7 @@ async def scan_loop():
     log('GitHub scan loop initiated.')
     while True: # hacky
         await scan_task()
-        await asyncio.sleep(5)
+        await asyncio.sleep(GITHUB_SCAN_PERIOD)
 
 # -------------------- INTERNAL SERVER --------------------
 
@@ -136,12 +140,14 @@ def startup():
         "git","branch","--show-current"],
         capture_output=True)
 
-    log(branch_check.stdout.decode("utf-8"))
+    if not (branch_check.stdout.decode("utf-8").strip() == ACTIVE_BRANCH):
+        raise Exception("Failed to switch to active branch "+ACTIVE_BRANCH)
 
     start_dream_daemon()
     pass
 
 async def restart():
+    global UPDATE_NEEDED
     terminate_byond()
     log("Waiting 20 seconds...")
     await asyncio.sleep(20)
@@ -197,7 +203,7 @@ async def daemare_handler(scope, receive, send):
     elif (query_string.startswith("shutdown")):
         log("BYOND shutdown signal received. Terminating DreamDaemon in 10 seconds.")
         await asyncio.sleep(10)
-        restart()
+        await restart()
 
     await send({
         'type': 'http.response.start',
@@ -235,3 +241,4 @@ if __name__ == "__main__":
 
 # TODO Actual test with DD.
 # TODO convert scan loop to asyncio
+# TODO Manual reset URL
