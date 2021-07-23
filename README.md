@@ -3,7 +3,7 @@ The other half are some modifications made to the /mlp/station code itself to
 allow communication with this system.
 
 # Usage
-Variables in `daemare.py` should be configured to intended values. Instead of
+Variables in `daemare.py` should be configured to intended values. `git`, `DreamDaemon`, and `DreamMaker` must be on PATH, and `pip install uvicorn` must be available. Instead of
 launching Dream Daemon directly, `python daemare.py` should be used to launch
 the BYOND server, because the daemare will now be responsible for starting and
 stopping the server as needed. No manual changes to tracked files should be
