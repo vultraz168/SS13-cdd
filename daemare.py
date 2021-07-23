@@ -8,7 +8,7 @@
 # CHANGE BELOW
 
 PATH_TO_SS13 = "D:/mlpstation13"
-ACTIVE_BRANCH = "main2"
+ACTIVE_BRANCH = "cdd_test"
 DME_NAME = "vgstation13.dme"
 DMB_NAME = "vgstation13.dmb"
 DAEMARE_PORT = 6158
@@ -24,6 +24,7 @@ import logging
 import os
 import signal
 import sys
+import click
 
 # The virgin "select library because of ease of use, documentation, and
 # performance" vs. the chad "select library because of the name"
@@ -31,25 +32,30 @@ import uvicorn
 
 # -------------------- GLOBALS --------------------
 
-DREAM_DAEMON = None # The dream daemon process
-UPDATE_NEEDED = False
 EVENT_LOOP = asyncio.get_event_loop()
+DREAM_DAEMON = None # The dream daemon process
+SERVER = None
+UPDATE_NEEDED = False
+GIT_TASK = None
 LOGGER = logging.getLogger("uvicorn.error")
 
 def log(msg):
-    LOGGER.info(msg)
+    print(click.style("INFO (CDD)", fg="green")+":\t", msg)
 
 # -------------------- GITHUB STUFF --------------------
 
 # Check for new content on GitHub and rebase if needed. Returns True if rebased.
 def check_remote_and_update():
     log("Checking for new content on GitHub.")
-    fetch_process = subprocess.run(["git","fetch"], shell=True)
+    fetch_process = subprocess.run(["git","fetch"])
 
     # Check for merge conflicts
     merge_check = subprocess.run([
         "git","merge","--no-commit","--no-ff",ACTIVE_BRANCH],
-        shell=True, capture_output=True)
+        capture_output=True)
+    
+    log(merge_check.stdout.decode("utf-8"))
+
     # Check if nothing needs to be done:
     if "up to date" in merge_check.stdout.decode("utf-8"):
         log("Up to date.")
@@ -57,16 +63,14 @@ def check_remote_and_update():
 
     log("Updates available on GitHub. Checking for merge conflicts.")
 
-    abort_process = subprocess.run(["git","merge","--abort"],
-        shell=True)
+    abort_process = subprocess.run(["git","merge","--abort"])
     if not (abort_process.returncode == 0):
         raise Exception("Error occurred while aborting dry merge.")
 
     # Exit status is 0 if the merge is possible.
     if merge_check.returncode == 0:
         log("No merge conflicts. Starting rebase.")
-        rebase_process = subprocess.run(["git","rebase",ACTIVE_BRANCH],
-            shell=True)
+        rebase_process = subprocess.run(["git","rebase",ACTIVE_BRANCH])
         if not (rebase_process.returncode == 0):
             raise Exception("Error occurred while rebasing.")
         log("Successfully rebased.")
@@ -78,7 +82,7 @@ def check_remote_and_update():
 
     return True
 
-async def update_task():
+async def scan_task():
     global UPDATE_NEEDED
     try:
             UPDATE_NEEDED |= check_remote_and_update()
@@ -86,10 +90,11 @@ async def update_task():
         traceback.print_exc()
     pass 
 
-async def update_loop():
-    while True:
-        await update_task()
-        await asyncio.sleep(60)
+async def scan_loop():
+    log('GitHub scan loop initiated.')
+    while True: # hacky
+        await scan_task()
+        await asyncio.sleep(5)
 
 # -------------------- INTERNAL SERVER --------------------
 
@@ -109,7 +114,7 @@ def terminate_byond():
 
 def compile_dme():
     log("Beginning compilation.")
-    compile_process = subprocess.run(["dm.exe",DME_NAME], shell=True)
+    compile_process = subprocess.run(["dm.exe",DME_NAME])
     if not (compile_process.returncode == 0):
         raise Exception('Compiler error.')
     pass
@@ -124,10 +129,19 @@ def start_dream_daemon():
 
 def startup():
     os.chdir(PATH_TO_SS13) 
+    subprocess.run([
+        "git","checkout",ACTIVE_BRANCH],
+        capture_output=True)
+    branch_check = subprocess.run([
+        "git","branch","--show-current"],
+        capture_output=True)
+
+    log(branch_check.stdout.decode("utf-8"))
+
     start_dream_daemon()
     pass
 
-def restart():
+async def restart():
     terminate_byond()
     log("Waiting 20 seconds...")
     await asyncio.sleep(20)
@@ -139,8 +153,9 @@ def restart():
     start_dream_daemon()
     UPDATE_NEEDED = False
 
-async def daemare_server(scope, receive, send):
+async def daemare_handler(scope, receive, send):
     global UPDATE_NEEDED
+
     # Handles GET requests made by BYOND end.
     # If the number of players has dipped below a certain threshold,
     # return a response to tell BYOND to start a restart vote.
@@ -194,26 +209,29 @@ async def daemare_server(scope, receive, send):
         'body' : b'ok'
     })
 
-def interrupt_handler():
+def cleanup():
     if (DREAM_DAEMON):
         terminate_byond()
-    EVENT_LOOP.stop()
+    if (GIT_TASK):
+        GIT_TASK.cancel()
     sys.exit(0)
 
-def main():
-    startup()
-    EVENT_LOOP.create_task(update_loop())
-    uvicorn.run("daemare:daemare_server", host="127.0.0.1",
-            port=DAEMARE_PORT, log_level="info")
+def uvicorn_server():
+    config = uvicorn.Config(daemare_handler, host="127.0.0.1",
+            port=DAEMARE_PORT, log_level="info", loop=EVENT_LOOP)
+    server = uvicorn.Server(config=config)
+    return server
 
-signal.signal(signal.SIGINT, interrupt_handler)
+def main():
+    global GIT_TASK
+    startup()
+    SERVER = uvicorn_server()
+    EVENT_LOOP.create_task(scan_loop())
+    EVENT_LOOP.run_until_complete(SERVER.serve())
+    cleanup()
 
 if __name__ == "__main__":
-    try:
-        main()
-    except KeyboardInterrupt:
-        pass
-    finally:
-        interrupt_handler()
+    main()
 
 # TODO Actual test with DD.
+# TODO convert scan loop to asyncio
