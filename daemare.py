@@ -126,8 +126,7 @@ def compile_dme():
 
 def start_dream_daemon():
     global DREAM_DAEMON
-    DREAM_DAEMON = subprocess.Popen(["DreamDaemon",DMB_NAME,
-        str(DREAM_DAEMON_PORT),"-safe"])
+    DREAM_DAEMON = subprocess.Popen(["dreamdaemon.exe",DMB_NAME,str(DREAM_DAEMON_PORT),"-safe"],shell=True)
     log("Dream Daemon started.")
     pass
 
@@ -147,17 +146,15 @@ def startup():
     pass
 
 async def restart():
-    global UPDATE_NEEDED
     terminate_byond()
+    global UPDATE_NEEDED
     log("Waiting 20 seconds...")
     await asyncio.sleep(20)
-    if (UPDATE_NEEDED):
-        try:
-            compile_dme()
-        except Exception as e:
-            traceback.print_exc()
+    try:
+        compile_dme()
+    except Exception as e:
+        traceback.print_exc()
     start_dream_daemon()
-    UPDATE_NEEDED = False
 
 async def daemare_handler(scope, receive, send):
     global UPDATE_NEEDED
@@ -200,7 +197,7 @@ async def daemare_handler(scope, receive, send):
             })
             return
 
-    elif (query_string.startswith("shutdown")):
+    elif (query_string.startswith("shutdown") and UPDATE_NEEDED):
         log("BYOND shutdown signal received. Terminating DreamDaemon in 10 seconds.")
         await asyncio.sleep(10)
         await restart()
