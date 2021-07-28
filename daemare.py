@@ -8,8 +8,8 @@
 # CHANGE BELOW
 
 PATH_TO_SS13 = "D:/mlpstation13"
-ACTIVE_REMOTE = "origin"
-ACTIVE_BRANCH = "cdd_test"
+ACTIVE_REMOTE = "upstream"
+ACTIVE_BRANCH = "Bleeding-Edge"
 DME_NAME = "vgstation13.dme"
 DMB_NAME = "vgstation13.dmb"
 DAEMARE_PORT = 6158
@@ -49,7 +49,7 @@ def log(msg):
 # Check for new content on GitHub and rebase if needed. Returns True if rebased.
 def check_remote_and_update():
     log("Checking for new content on GitHub.")
-    fetch_process = subprocess.run(["git","fetch"])
+    fetch_process = subprocess.run(["git","fetch",ACTIVE_REMOTE])
 
     # Check for merge conflicts
     merge_check = subprocess.run([
@@ -126,7 +126,7 @@ def compile_dme():
 
 def start_dream_daemon():
     global DREAM_DAEMON
-    DREAM_DAEMON = subprocess.Popen(["dreamdaemon.exe",DMB_NAME,str(DREAM_DAEMON_PORT),"-safe"],shell=True)
+    DREAM_DAEMON = subprocess.Popen(["dreamdaemon.exe",DMB_NAME,str(DREAM_DAEMON_PORT),"-safe"])
     log("Dream Daemon started.")
     pass
 
@@ -147,7 +147,6 @@ def startup():
 
 async def restart():
     terminate_byond()
-    global UPDATE_NEEDED
     log("Waiting 20 seconds...")
     await asyncio.sleep(20)
     try:
