@@ -146,6 +146,7 @@ def startup():
     pass
 
 async def restart():
+    global UPDATE_NEEDED
     terminate_byond()
     log("Waiting 20 seconds...")
     await asyncio.sleep(20)
@@ -153,8 +154,8 @@ async def restart():
         compile_dme()
     except Exception as e:
         traceback.print_exc()
-    UPDATE_NEEDED = False
     start_dream_daemon()
+    UPDATE_NEEDED = False
 
 async def daemare_handler(scope, receive, send):
     global UPDATE_NEEDED
@@ -197,7 +198,7 @@ async def daemare_handler(scope, receive, send):
             })
             return
 
-    elif (query_string.startswith("shutdown") and UPDATE_NEEDED):
+    elif (query_string.startswith("shutdown") and (UPDATE_NEEDED == True)):
         log("BYOND shutdown signal received. Terminating DreamDaemon in 10 seconds.")
         await asyncio.sleep(10)
         await restart()
