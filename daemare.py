@@ -153,6 +153,7 @@ async def restart():
         compile_dme()
     except Exception as e:
         traceback.print_exc()
+    UPDATE_NEEDED = False
     start_dream_daemon()
 
 async def daemare_handler(scope, receive, send):
